@@ -1,0 +1,17 @@
+#!/bin/sh -x
+
+br="$1"
+eth="$2"
+tap="$3"
+
+br_ip="192.168.32.4"
+
+ip l set down dev $br
+brctl delbr $br
+openvpn --rmtun --dev $tap
+
+rt_tap="tap"
+ip route flush table $rt_tap
+ip rule del iif $br table $rt_tap 2>/dev/null 
+ip rule del oif $br table $rt_tap 2>/dev/null
+ip rule del from $br_ip table $rt_tap 2>/dev/null

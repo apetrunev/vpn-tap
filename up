@@ -1,0 +1,40 @@
+#!/bin/sh -x 
+
+br="$1"
+eth="$2"
+tap="$3"
+mtu="$4"
+
+br_ip="192.168.32.4"
+br_gw="192.168.32.1"
+
+if [ -n "$(ip l sh dev $br | grep -o $br)" ]; then
+  ip l set down dev $br
+  brctl delbr $br
+fi
+
+brctl addbr $br
+brctl addif $br $eth
+brctl addif $br $tap
+
+ip link set up dev $tap promisc on mtu $mtu
+ip link set up dev $eth promisc on mtu $mtu
+
+ip l set up dev $br
+ip a add $br_ip/24 brd + dev $br
+
+rt_tap="tap"
+
+test -z "$(grep -o $rt_tap /etc/iproute2/rt_tables)" && echo "100\t$rt_tap" >> /etc/iproute2/rt_tables 
+
+ip route flush table $rt_tap
+ip rule del iif $br table $rt_tap 2>/dev/null 
+ip rule del oif $br table $rt_tap 2>/dev/null
+ip rule del from $br_ip table $rt_tap 2>/dev/null
+
+ip route add table $rt_tap default via $br_gw dev $br
+ip rule add iif $br table $rt_tap
+ip rule add oif $br table $rt_tap
+ip rule add from $br_ip table $rt_tap
+
+sysctl -w net.ipv4.ip_forward=1 1>&2 > /dev/null
